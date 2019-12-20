@@ -61,7 +61,7 @@ class Dist_Archive_Command {
 		} else {
 			$archive_file = null;
 		}
-		$path = rtrim( realpath( $path ), '/' );
+		$path = rtrim( realpath( $path ), '/\\' );
 		if ( ! is_dir( $path ) ) {
 			WP_CLI::error( 'Provided path is not a directory.' );
 		}
@@ -71,8 +71,11 @@ class Dist_Archive_Command {
 			WP_CLI::error( 'No .distignore file found.' );
 		}
 
-		$maybe_ignored_files = explode( PHP_EOL, file_get_contents( $dist_ignore_path ) );
-		$ignored_files       = array();
+		$distignore_content  = file_get_contents( $dist_ignore_path );
+		$distignore_content  = str_replace( "\r\n", "\n", $distignore_content );
+		$distignore_content  = str_replace( "\r", "\n", $distignore_content );
+		$maybe_ignored_files = explode( "\n", $distignore_content );
+		$ignored_files       = [];
 		$archive_base        = basename( $path );
 		foreach ( $maybe_ignored_files as $file ) {
 			$file = trim( $file );
@@ -80,7 +83,7 @@ class Dist_Archive_Command {
 				continue;
 			}
 			if ( is_dir( $path . '/' . $file ) ) {
-				$file = rtrim( $file, '/' ) . '/*';
+				$file = rtrim( $file, '/\\' ) . '/*';
 			}
 			if ( 'zip' === $assoc_args['format'] ) {
 				$ignored_files[] = '*/' . $file;
@@ -144,12 +147,16 @@ class Dist_Archive_Command {
 					if ( '/*' === substr( $ignored_file, -2 ) ) {
 						$ignored_file = substr( $ignored_file, 0, ( strlen( $ignored_file ) - 2 ) );
 					}
-						return "--exclude='{$ignored_file}'";
+					return "--exclude='{$ignored_file}'";
 				},
 				$ignored_files
 			);
 			$excludes = implode( ' ', $excludes );
 			$cmd      = "tar {$excludes} -zcvf {$archive_file} {$archive_base}";
+		}
+
+		if ( Utils\is_windows() ) {
+			$cmd = str_replace( '\\', '/', $cmd );
 		}
 
 		WP_CLI::debug( "Running: {$cmd}", 'dist-archive' );
